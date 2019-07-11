@@ -31,6 +31,8 @@ import json
 import torch
 import torch.utils.data
 import sys
+import numpy as np
+import librosa
 from scipy.io.wavfile import read
 
 # We're using the audio processing from TacoTron2 to make sure it matches
@@ -49,12 +51,17 @@ def files_to_list(filename):
     files = [f.rstrip() for f in files]
     return files
 
-def load_wav_to_torch(full_path):
-    """
-    Loads wavdata into torch array
-    """
-    sampling_rate, data = read(full_path)
-    return torch.from_numpy(data).float(), sampling_rate
+def load_wav_to_torch(full_path, sampling_rate):
+    print("!!!!!!!!!!!!!!GOOOOOOGO!!!", full_path)
+    data = librosa.core.load(full_path, sr=sampling_rate)[0]
+    data = data / np.abs(data).max() * 0.999
+    return torch.FloatTensor(data.astype(np.float32))
+# def load_wav_to_torch(full_path):
+#     """
+#     Loads wavdata into torch array
+#     """
+#     sampling_rate, data = read(full_path)
+#     return torch.from_numpy(data).float(), sampling_rate
 
 
 class Mel2Samp(torch.utils.data.Dataset):
@@ -76,8 +83,8 @@ class Mel2Samp(torch.utils.data.Dataset):
         self.sampling_rate = sampling_rate
 
     def get_mel(self, audio):
-        audio_norm = audio / MAX_WAV_VALUE
-        audio_norm = audio_norm.unsqueeze(0)
+        # audio_norm = audio / MAX_WAV_VALUE
+        audio_norm = audio.unsqueeze(0)
         audio_norm = torch.autograd.Variable(audio_norm, requires_grad=False)
         melspec = self.stft.mel_spectrogram(audio_norm)
         melspec = torch.squeeze(melspec, 0)
@@ -100,7 +107,7 @@ class Mel2Samp(torch.utils.data.Dataset):
             audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
 
         mel = self.get_mel(audio)
-        audio = audio / MAX_WAV_VALUE
+        # audio = audio / MAX_WAV_VALUE
 
         return (mel, audio)
 
