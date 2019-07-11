@@ -93,10 +93,10 @@ class Mel2Samp(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # Read audio
         filename = self.audio_files[index]
-        audio, sampling_rate = load_wav_to_torch(filename, self.sampling_rate)
-        if sampling_rate != self.sampling_rate:
-            raise ValueError("{} SR doesn't match target {} SR".format(
-                sampling_rate, self.sampling_rate))
+        audio = load_wav_to_torch(filename, self.sampling_rate)
+        # if sampling_rate != self.sampling_rate:
+        #     raise ValueError("{} SR doesn't match target {} SR".format(
+        #         sampling_rate, self.sampling_rate))
 
         # Take segment
         if audio.size(0) >= self.segment_length:
@@ -143,7 +143,7 @@ if __name__ == "__main__":
         os.chmod(args.output_dir, 0o775)
 
     for filepath in filepaths:
-        audio, sr = load_wav_to_torch(filepath, args.sampling_rate)
+        audio = load_wav_to_torch(filepath, args.sampling_rate)
         melspectrogram = mel2samp.get_mel(audio)
         filename = os.path.basename(filepath)
         new_filepath = args.output_dir + '/' + filename + '.pt'
