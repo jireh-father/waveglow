@@ -81,10 +81,10 @@ class Mel2Samp(torch.utils.data.Dataset):
         self.segment_length = segment_length
         self.sampling_rate = sampling_rate
         self.cache_map = {}
-        for i, audio_file in enumerate(self.audio_files):
-            if i % 20 == 0:
-                print(i, "cached / ", len(self.audio_files))
-            self.__getitem__(i)
+        # for i, audio_file in enumerate(self.audio_files):
+        #     if i % 20 == 0:
+        #         print(i, "cached / ", len(self.audio_files))
+        #     self.__getitem__(i)
 
     def get_mel(self, audio):
         # audio_norm = audio / MAX_WAV_VALUE
@@ -97,7 +97,7 @@ class Mel2Samp(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # Read audio
         filename = self.audio_files[index]
-        if filename in self.cache_map:
+        if False:#filename in self.cache_map:
             print(">> hit!", filename)
             mel, audio = self.cache_map[filename]
         else:
