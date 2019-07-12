@@ -98,7 +98,7 @@ class Mel2Samp(torch.utils.data.Dataset):
         filename = self.audio_files[index]
         audio_filename = self.training_audio_files[index]
 
-        mel = torch.load(filename)
+        # mel = torch.load(filename)
         # mel = torch.autograd.Variable(mel.cuda())
         # mel = torch.unsqueeze(mel, 0)
         # mel = mel.half() if self.is_fp16 else mel
@@ -116,7 +116,7 @@ class Mel2Samp(torch.utils.data.Dataset):
         else:
             audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
 
-        # mel = self.get_mel(audio)
+        mel = self.get_mel(audio)
         # audio = audio / MAX_WAV_VALUE
 
         return (mel, audio)
