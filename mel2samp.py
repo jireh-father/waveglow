@@ -83,7 +83,7 @@ class Mel2Samp(torch.utils.data.Dataset):
         self.cache_map = {}
         for i, audio_file in enumerate(self.audio_files):
             if i % 20 == 0:
-                print(i, "cached")
+                print(i, "cached / ", len(self.audio_files))
             self.__getitem__(i)
 
     def get_mel(self, audio):
