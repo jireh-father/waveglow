@@ -28,6 +28,7 @@ import argparse
 import json
 import os
 import torch
+import datetime
 
 #=====START: ADDED FOR DISTRIBUTED======
 from distributed import init_distributed, apply_gradient_allreduce, reduce_tensor
@@ -115,7 +116,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
     epoch_offset = max(0, int(iteration / len(train_loader)))
     # ================ MAIN TRAINNIG LOOP! ===================
     for epoch in range(epoch_offset, epochs):
-        print("Epoch: {}".format(epoch))
+        print("Epoch: [{}] {}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), epoch))
         for i, batch in enumerate(train_loader):
             model.zero_grad()
 
@@ -138,7 +139,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
 
             optimizer.step()
 
-            print("{}:\t{:.9f}".format(iteration, reduced_loss))
+            print("[{}] {}:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), iteration, reduced_loss))
             if with_tensorboard and rank == 0:
                 logger.add_scalar('training_loss', reduced_loss, i + len(train_loader) * epoch)
 
