@@ -94,6 +94,7 @@ class Mel2Samp(torch.utils.data.Dataset):
         # Read audio
         filename = self.audio_files[index]
         if filename in self.cache_map:
+            print(">> hit!", filename)
             mel, audio = self.cache_map[filename]
         else:
             audio = load_wav_to_torch(filename, self.sampling_rate)
