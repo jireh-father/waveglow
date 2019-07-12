@@ -19,7 +19,8 @@
         "hop_length": 256,
         "win_length": 1024,
         "mel_fmin": 0.0,
-        "mel_fmax": 8000.0
+        "mel_fmax": 8000.0,
+        "num_workers": 4
     },
     "dist_config": {
         "dist_backend": "nccl",

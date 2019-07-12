@@ -68,7 +68,7 @@ class Mel2Samp(torch.utils.data.Dataset):
     This is the main class that calculates the spectrogram and returns the
     spectrogram, audio pair.
     """
-    def __init__(self, training_files, segment_length, filter_length,
+    def __init__(self, fp16_run, training_files, segment_length, filter_length,
                  hop_length, win_length, sampling_rate, mel_fmin, mel_fmax):
         self.audio_files = files_to_list(training_files)
         random.seed(1234)
@@ -80,11 +80,7 @@ class Mel2Samp(torch.utils.data.Dataset):
                                  mel_fmin=mel_fmin, mel_fmax=mel_fmax)
         self.segment_length = segment_length
         self.sampling_rate = sampling_rate
-        self.cache_map = {}
-        # for i, audio_file in enumerate(self.audio_files):
-        #     if i % 20 == 0:
-        #         print(i, "cached / ", len(self.audio_files))
-        #     self.__getitem__(i)
+        self.fp16_run = fp16_run
 
     def get_mel(self, audio):
         # audio_norm = audio / MAX_WAV_VALUE
@@ -97,26 +93,28 @@ class Mel2Samp(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # Read audio
         filename = self.audio_files[index]
-        if False:#filename in self.cache_map:
-            print(">> hit!", filename)
-            mel, audio = self.cache_map[filename]
+
+        mel = torch.load(filename)
+        mel = torch.autograd.Variable(mel.cuda())
+        mel = torch.unsqueeze(mel, 0)
+        mel = mel.half() if self.is_fp16 else mel
+
+        audio = load_wav_to_torch(filename, self.sampling_rate)
+        # if sampling_rate != self.sampling_rate:
+        #     raise ValueError("{} SR doesn't match target {} SR".format(
+        #         sampling_rate, self.sampling_rate))
+
+        # Take segment
+        if audio.size(0) >= self.segment_length:
+            max_audio_start = audio.size(0) - self.segment_length
+            audio_start = random.randint(0, max_audio_start)
+            audio = audio[audio_start:audio_start+self.segment_length]
         else:
-            audio = load_wav_to_torch(filename, self.sampling_rate)
-            # if sampling_rate != self.sampling_rate:
-            #     raise ValueError("{} SR doesn't match target {} SR".format(
-            #         sampling_rate, self.sampling_rate))
+            audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
 
-            # Take segment
-            if audio.size(0) >= self.segment_length:
-                max_audio_start = audio.size(0) - self.segment_length
-                audio_start = random.randint(0, max_audio_start)
-                audio = audio[audio_start:audio_start+self.segment_length]
-            else:
-                audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
+        # mel = self.get_mel(audio)
+        # audio = audio / MAX_WAV_VALUE
 
-            mel = self.get_mel(audio)
-            # audio = audio / MAX_WAV_VALUE
-            self.cache_map[filename] = [mel, audio]
         return (mel, audio)
 
     def __len__(self):
@@ -141,7 +139,8 @@ if __name__ == "__main__":
     with open(args.config) as f:
         data = f.read()
     data_config = json.loads(data)["data_config"]
-    mel2samp = Mel2Samp(**data_config)
+    train_config = json.loads(data)["train_config"]
+    mel2samp = Mel2Samp(train_config["fp16_run"], **data_config)
 
     filepaths = files_to_list(args.filelist_path)
 
