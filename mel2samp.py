@@ -69,8 +69,10 @@ class Mel2Samp(torch.utils.data.Dataset):
     spectrogram, audio pair.
     """
     def __init__(self, fp16_run, training_files, segment_length, filter_length,
-                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers):
+                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers, training_audio_files):
         self.audio_files = files_to_list(training_files)
+        self.training_audio_files = files_to_list(training_audio_files)
+
         random.seed(1234)
         random.shuffle(self.audio_files)
         self.stft = TacotronSTFT(filter_length=filter_length,
@@ -94,13 +96,14 @@ class Mel2Samp(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # Read audio
         filename = self.audio_files[index]
+        audio_filename = self.training_audio_files[index]
 
         mel = torch.load(filename)
         # mel = torch.autograd.Variable(mel.cuda())
         # mel = torch.unsqueeze(mel, 0)
         # mel = mel.half() if self.is_fp16 else mel
 
-        audio = load_wav_to_torch(filename, self.sampling_rate)
+        audio = load_wav_to_torch(audio_filename, self.sampling_rate)
         # if sampling_rate != self.sampling_rate:
         #     raise ValueError("{} SR doesn't match target {} SR".format(
         #         sampling_rate, self.sampling_rate))
