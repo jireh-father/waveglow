@@ -96,9 +96,9 @@ class Mel2Samp(torch.utils.data.Dataset):
         filename = self.audio_files[index]
 
         mel = torch.load(filename)
-        mel = torch.autograd.Variable(mel.cuda())
-        mel = torch.unsqueeze(mel, 0)
-        mel = mel.half() if self.is_fp16 else mel
+        # mel = torch.autograd.Variable(mel.cuda())
+        # mel = torch.unsqueeze(mel, 0)
+        # mel = mel.half() if self.is_fp16 else mel
 
         audio = load_wav_to_torch(filename, self.sampling_rate)
         # if sampling_rate != self.sampling_rate:
