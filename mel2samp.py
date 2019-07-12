@@ -80,6 +80,7 @@ class Mel2Samp(torch.utils.data.Dataset):
                                  mel_fmin=mel_fmin, mel_fmax=mel_fmax)
         self.segment_length = segment_length
         self.sampling_rate = sampling_rate
+        self.cache_map = {}
 
     def get_mel(self, audio):
         # audio_norm = audio / MAX_WAV_VALUE
@@ -92,22 +93,25 @@ class Mel2Samp(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # Read audio
         filename = self.audio_files[index]
-        audio = load_wav_to_torch(filename, self.sampling_rate)
-        # if sampling_rate != self.sampling_rate:
-        #     raise ValueError("{} SR doesn't match target {} SR".format(
-        #         sampling_rate, self.sampling_rate))
-
-        # Take segment
-        if audio.size(0) >= self.segment_length:
-            max_audio_start = audio.size(0) - self.segment_length
-            audio_start = random.randint(0, max_audio_start)
-            audio = audio[audio_start:audio_start+self.segment_length]
+        if filename in self.cache_map:
+            mel, audio = self.cache_map[filename]
         else:
-            audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
+            audio = load_wav_to_torch(filename, self.sampling_rate)
+            # if sampling_rate != self.sampling_rate:
+            #     raise ValueError("{} SR doesn't match target {} SR".format(
+            #         sampling_rate, self.sampling_rate))
 
-        mel = self.get_mel(audio)
-        # audio = audio / MAX_WAV_VALUE
+            # Take segment
+            if audio.size(0) >= self.segment_length:
+                max_audio_start = audio.size(0) - self.segment_length
+                audio_start = random.randint(0, max_audio_start)
+                audio = audio[audio_start:audio_start+self.segment_length]
+            else:
+                audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
 
+            mel = self.get_mel(audio)
+            # audio = audio / MAX_WAV_VALUE
+            self.cache_map[filename] = [mel, audio]
         return (mel, audio)
 
     def __len__(self):
