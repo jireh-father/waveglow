@@ -134,7 +134,7 @@ if __name__ == "__main__":
                         help='JSON file for configuration')
     parser.add_argument('-o', '--output_dir', type=str,
                         help='Output directory')
-    parser.add_argument('-s', '--sample_rate', type=int,
+    parser.add_argument('-s', '--sampling_rate', type=int,
                         help='sample rate', default=22050)
     args = parser.parse_args()
 
