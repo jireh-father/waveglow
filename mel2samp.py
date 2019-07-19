@@ -160,12 +160,12 @@ if __name__ == "__main__":
     for filepath in filepaths:
         audio = load_wav_to_torch(filepath, args.sampling_rate)
         if args.model_name == "waveglow":
-            if audio.size(0) >= data_config.segment_length:
-                max_audio_start = audio.size(0) - data_config.segment_length
+            if audio.size(0) >= data_config["segment_length"]:
+                max_audio_start = audio.size(0) - data_config["segment_length"]
                 audio_start = random.randint(0, max_audio_start)
-                audio = audio[audio_start:audio_start+data_config.segment_length]
+                audio = audio[audio_start:audio_start+data_config["segment_length"]]
             else:
-                audio = torch.nn.functional.pad(audio, (0, data_config.segment_length - audio.size(0)), 'constant').data
+                audio = torch.nn.functional.pad(audio, (0, data_config["segment_length"] - audio.size(0)), 'constant').data
 
         melspectrogram = mel2samp.get_mel(audio)
         filename = os.path.basename(filepath)
