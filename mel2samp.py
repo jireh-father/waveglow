@@ -69,7 +69,7 @@ class Mel2Samp(torch.utils.data.Dataset):
     spectrogram, audio pair.
     """
     def __init__(self, fp16_run, training_files, segment_length, filter_length,
-                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers, training_audio_files):
+                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers, training_audio_files, preprocessing):
         self.audio_files = files_to_list(training_files)
         self.training_audio_files = files_to_list(training_audio_files)
 
@@ -84,6 +84,7 @@ class Mel2Samp(torch.utils.data.Dataset):
         self.sampling_rate = sampling_rate
         self.fp16_run = fp16_run
         self.num_workers = num_workers
+        self.preprocessing = preprocessing
 
     def get_mel(self, audio):
         # audio_norm = audio / MAX_WAV_VALUE
@@ -98,7 +99,8 @@ class Mel2Samp(torch.utils.data.Dataset):
         filename = self.audio_files[index]
         audio_filename = self.training_audio_files[index]
 
-        # mel = torch.load(filename)
+        if self.preprocessing:
+            mel = torch.load(filename)
         # mel = torch.autograd.Variable(mel.cuda())
         # mel = torch.unsqueeze(mel, 0)
         # mel = mel.half() if self.is_fp16 else mel
@@ -115,8 +117,8 @@ class Mel2Samp(torch.utils.data.Dataset):
             audio = audio[audio_start:audio_start+self.segment_length]
         else:
             audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
-
-        mel = self.get_mel(audio)
+        if not self.preprocessing:
+            mel = self.get_mel(audio)
         # audio = audio / MAX_WAV_VALUE
 
         return (mel, audio)

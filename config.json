@@ -21,7 +21,8 @@
         "win_length": 1024,
         "mel_fmin": 0.0,
         "mel_fmax": 8000.0,
-        "num_workers": 4
+        "num_workers": 4,
+        "preprocessing": true
     },
     "dist_config": {
         "dist_backend": "nccl",
