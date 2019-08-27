@@ -173,8 +173,6 @@ if __name__ == "__main__":
                         help='sample rate', default=22050)
     parser.add_argument('-n', '--num_processes', type=int,
                         help='sample rate', default=8)
-    parser.add_argument('-p', '--output_file', type=str,
-                        help='output file', default=None)
     args = parser.parse_args()
 
     with open(args.config) as f:
