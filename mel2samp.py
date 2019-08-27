@@ -98,7 +98,7 @@ class Mel2Samp(torch.utils.data.Dataset):
     spectrogram, audio pair.
     """
     def __init__(self, training_files, segment_length, filter_length,
-                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers):
+                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers, npy_dir):
         self.audio_files = files_to_list(training_files)
 
         random.seed(1234)
@@ -111,6 +111,7 @@ class Mel2Samp(torch.utils.data.Dataset):
         self.segment_length = segment_length
         self.sampling_rate = sampling_rate
         self.num_workers = num_workers
+        self.npy_dir = npy_dir
 
     def get_mel(self, audio):
         # audio_norm = audio / MAX_WAV_VALUE
@@ -123,7 +124,7 @@ class Mel2Samp(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # Read audio
         filename = self.audio_files[index]
-
+        filename = os.path.join(self.npy_dir, os.path.basename(filename) + ".npy")
         audio = np.load(filename)
 
         audio = torch.from_numpy(audio).float()
