@@ -29,15 +29,18 @@ import json
 import os
 import torch
 import datetime
+import eval
+import time
 
-#=====START: ADDED FOR DISTRIBUTED======
+# =====START: ADDED FOR DISTRIBUTED======
 from distributed import init_distributed, apply_gradient_allreduce, reduce_tensor
 from torch.utils.data.distributed import DistributedSampler
-#=====END:   ADDED FOR DISTRIBUTED======
+# =====END:   ADDED FOR DISTRIBUTED======
 
 from torch.utils.data import DataLoader
 from glow import WaveGlow, WaveGlowLoss
 from mel2samp import Mel2Samp
+
 
 def load_checkpoint(checkpoint_path, model, optimizer):
     assert os.path.isfile(checkpoint_path)
@@ -46,13 +49,14 @@ def load_checkpoint(checkpoint_path, model, optimizer):
     optimizer.load_state_dict(checkpoint_dict['optimizer'])
     model_for_loading = checkpoint_dict['model']
     model.load_state_dict(model_for_loading.state_dict())
-    print("Loaded checkpoint '{}' (iteration {})" .format(
-          checkpoint_path, iteration))
+    print("Loaded checkpoint '{}' (iteration {})".format(
+        checkpoint_path, iteration))
     return model, optimizer, iteration
+
 
 def save_checkpoint(model, optimizer, learning_rate, iteration, filepath):
     print("Saving model and optimizer state at iteration {} to {}".format(
-          iteration, filepath))
+        iteration, filepath))
     model_for_saving = WaveGlow(**waveglow_config).cuda()
     model_for_saving.load_state_dict(model.state_dict())
     torch.save({'model': model_for_saving,
@@ -60,24 +64,25 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, filepath):
                 'optimizer': optimizer.state_dict(),
                 'learning_rate': learning_rate}, filepath)
 
+
 def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
           sigma, iters_per_checkpoint, batch_size, seed, fp16_run,
           checkpoint_path, with_tensorboard, num_workers=4):
     print("num_workers", num_workers)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
-    #=====START: ADDED FOR DISTRIBUTED======
+    # =====START: ADDED FOR DISTRIBUTED======
     if num_gpus > 1:
         init_distributed(rank, num_gpus, group_name, **dist_config)
-    #=====END:   ADDED FOR DISTRIBUTED======
+    # =====END:   ADDED FOR DISTRIBUTED======
 
     criterion = WaveGlowLoss(sigma)
     model = WaveGlow(**waveglow_config).cuda()
 
-    #=====START: ADDED FOR DISTRIBUTED======
+    # =====START: ADDED FOR DISTRIBUTED======
     if num_gpus > 1:
         model = apply_gradient_allreduce(model)
-    #=====END:   ADDED FOR DISTRIBUTED======
+    # =====END:   ADDED FOR DISTRIBUTED======
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -92,12 +97,19 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
                                                       optimizer)
         iteration += 1  # next iteration is iteration + 1
 
-    trainset = Mel2Samp(fp16_run, **data_config)
+    trainset = Mel2Samp(**data_config)
+    evalset = Mel2Samp(**eval_data_config)
     # =====START: ADDED FOR DISTRIBUTED======
     train_sampler = DistributedSampler(trainset) if num_gpus > 1 else None
+    eval_sampler = DistributedSampler(evalset) if num_gpus > 1 else None
     # =====END:   ADDED FOR DISTRIBUTED======
     train_loader = DataLoader(trainset, num_workers=num_workers, shuffle=False,
                               sampler=train_sampler,
+                              batch_size=batch_size,
+                              pin_memory=False,
+                              drop_last=True)
+    eval_loader = DataLoader(evalset, num_workers=num_workers, shuffle=False,
+                              sampler=eval_sampler,
                               batch_size=batch_size,
                               pin_memory=False,
                               drop_last=True)
@@ -113,17 +125,20 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
         from tensorboardX import SummaryWriter
         logger = SummaryWriter(os.path.join(output_directory, 'logs'))
 
-    model.train()
     epoch_offset = max(0, int(iteration / len(train_loader)))
+    start_time = time.time()
     # ================ MAIN TRAINNIG LOOP! ===================
     for epoch in range(epoch_offset, epochs):
-        print("Epoch: [{}] {}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), epoch))
+        print("Epoch: [{}][els: {}] {}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
+                                               time.time() - start_time, epoch))
+        model.train()
         for i, batch in enumerate(train_loader):
             model.zero_grad()
 
             mel, audio = batch
             mel = torch.autograd.Variable(mel.cuda())
             audio = torch.autograd.Variable(audio.cuda())
+
             outputs = model((mel, audio))
 
             loss = criterion(outputs)
@@ -140,7 +155,10 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
 
             optimizer.step()
 
-            print("[{}] {}:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), iteration, reduced_loss))
+            if i > 0 and i % 10:
+                print("[{}][els: {}] {}:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
+                                                         time.time() - start_time, iteration,
+                                                         reduced_loss))
             if with_tensorboard and rank == 0:
                 logger.add_scalar('training_loss', reduced_loss, i + len(train_loader) * epoch)
 
@@ -152,6 +170,8 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
                                     checkpoint_path)
 
             iteration += 1
+        eval.eval(eval_loader, model, criterion, num_gpus, start_time)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -170,6 +190,8 @@ if __name__ == "__main__":
     train_config = config["train_config"]
     global data_config
     data_config = config["data_config"]
+    global eval_data_config
+    eval_data_config = config["eval_data_config"]
     global dist_config
     dist_config = config["dist_config"]
     global waveglow_config
