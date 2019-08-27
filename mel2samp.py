@@ -33,8 +33,6 @@ import torch.utils.data
 import sys
 import numpy as np
 import librosa
-from multiprocess.pool import Pool
-from scipy.io.wavfile import read
 
 # We're using the audio processing from TacoTron2 to make sure it matches
 sys.path.insert(0, 'tacotron2')
