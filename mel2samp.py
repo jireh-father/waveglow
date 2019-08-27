@@ -171,8 +171,6 @@ if __name__ == "__main__":
                         help='Output directory')
     parser.add_argument('-s', '--sampling_rate', type=int,
                         help='sample rate', default=22050)
-    parser.add_argument('-n', '--num_processes', type=int,
-                        help='sample rate', default=8)
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -181,17 +179,17 @@ if __name__ == "__main__":
     train_config = json.loads(data)["train_config"]
     mel2samp = Mel2Samp(train_config["fp16_run"], **data_config)
 
-    def local_mel2samp(filepath):
-        print(filepath)
-        filepath = filepath.split("|")[0]
-        audio = preprocess_wav(filepath, sampling_rate=args.sampling_rate)
-        # audio = load_wav_to_torch(filepath, args.sampling_rate)
-        audio = torch.FloatTensor(audio.astype(np.float32))
-        melspectrogram = mel2samp.get_mel(audio)
-        filename = os.path.basename(filepath)
-        new_filepath = args.output_dir + '/' + filename + '.pt'
-        print(new_filepath)
-        torch.save(melspectrogram, new_filepath)
+    # def local_mel2samp(filepath):
+    #     filepath = filepath.split("|")[0]
+    #     print(filepath)
+    #     audio = preprocess_wav(filepath, sampling_rate=args.sampling_rate)
+    #     # audio = load_wav_to_torch(filepath, args.sampling_rate)
+    #     audio = torch.FloatTensor(audio.astype(np.float32))
+    #     melspectrogram = mel2samp.get_mel(audio)
+    #     filename = os.path.basename(filepath)
+    #     new_filepath = args.output_dir + '/' + filename + '.pt'
+    #     print(new_filepath)
+    #     torch.save(melspectrogram, new_filepath)
 
     filepaths = files_to_list(args.filelist_path)
 
@@ -200,18 +198,20 @@ if __name__ == "__main__":
         os.makedirs(args.output_dir)
         os.chmod(args.output_dir, 0o775)
 
-    with Pool(args.num_processes) as pool:  # ThreadPool(8) as pool:
-        # list(tqdm(pool.imap(preprocess_speaker, speaker_dirs), dataset_name, len(speaker_dirs),
-        list(pool.map(local_mel2samp, filepaths))
+    # with Pool(args.num_processes) as pool:  # ThreadPool(8) as pool:
+    #     # list(tqdm(pool.imap(preprocess_speaker, speaker_dirs), dataset_name, len(speaker_dirs),
+    #     list(pool.map(local_mel2samp, filepaths))
 
 
 
-    # for filepath in filepaths:
-    #     audio = preprocess_wav(filepath, sampling_rate=args.sampling_rate)
-    #     # audio = load_wav_to_torch(filepath, args.sampling_rate)
-    #
-    #     melspectrogram = mel2samp.get_mel(audio)
-    #     filename = os.path.basename(filepath)
-    #     new_filepath = args.output_dir + '/' + filename + '.pt'
-    #     print(new_filepath)
-    #     torch.save(melspectrogram, new_filepath)
+    for filepath in filepaths:
+        filepath = filepath.split("|")[0]
+        audio = preprocess_wav(filepath, sampling_rate=args.sampling_rate)
+        # audio = load_wav_to_torch(filepath, args.sampling_rate)
+        audio = torch.FloatTensor(audio.astype(np.float32))
+
+        melspectrogram = mel2samp.get_mel(audio)
+        filename = os.path.basename(filepath)
+        new_filepath = args.output_dir + '/' + filename + '.pt'
+        print(new_filepath)
+        torch.save(melspectrogram, new_filepath)
