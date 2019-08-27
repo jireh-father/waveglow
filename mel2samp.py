@@ -182,6 +182,7 @@ if __name__ == "__main__":
     mel2samp = Mel2Samp(train_config["fp16_run"], **data_config)
 
     def local_mel2samp(filepath):
+        print(filepath)
         filepath = filepath.split("|")[0]
         audio = preprocess_wav(filepath, sampling_rate=args.sampling_rate)
         # audio = load_wav_to_torch(filepath, args.sampling_rate)
@@ -201,7 +202,7 @@ if __name__ == "__main__":
 
     with Pool(args.num_processes) as pool:  # ThreadPool(8) as pool:
         # list(tqdm(pool.imap(preprocess_speaker, speaker_dirs), dataset_name, len(speaker_dirs),
-        pool.map(local_mel2samp, filepaths)
+        list(pool.map(local_mel2samp, filepaths))
 
 
 
