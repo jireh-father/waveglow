@@ -33,6 +33,7 @@ import torch.utils.data
 import sys
 import numpy as np
 import librosa
+from multiprocess.pool import Pool
 from scipy.io.wavfile import read
 
 # We're using the audio processing from TacoTron2 to make sure it matches
@@ -61,6 +62,36 @@ def load_wav_to_torch(full_path, sampling_rate):
 #     """
 #     sampling_rate, data = read(full_path)
 #     return torch.from_numpy(data).float(), sampling_rate
+
+int16_max = (2 ** 15) - 1
+audio_norm_target_dBFS = -30
+
+def preprocess_wav(fpath_or_wav, source_sr = None, sampling_rate=16000):
+    # Load the wav from disk if needed
+    if isinstance(fpath_or_wav, str):
+        wav, source_sr = librosa.load(fpath_or_wav, sr=None)
+    else:
+        wav = fpath_or_wav
+
+    # Resample the wav if needed
+    if source_sr is not None and source_sr != sampling_rate:
+        wav = librosa.resample(wav, source_sr, sampling_rate)
+
+    # Apply the preprocessing: normalize volume and shorten long silences
+    wav = normalize_volume(wav, audio_norm_target_dBFS, increase_only=True)
+    wav = wav / np.abs(wav).max() * 0.999
+    # wav = trim_long_silences(wav)
+    return wav
+
+def normalize_volume(wav, target_dBFS, increase_only=False, decrease_only=False):
+    if increase_only and decrease_only:
+        raise ValueError("Both increase only and decrease only are set")
+    rms = np.sqrt(np.mean((wav * int16_max) ** 2))
+    wave_dBFS = 20 * np.log10(rms / int16_max)
+    dBFS_change = target_dBFS - wave_dBFS
+    if dBFS_change < 0 and increase_only or dBFS_change > 0 and decrease_only:
+        return wav
+    return wav * (10 ** (dBFS_change / 20))
 
 
 class Mel2Samp(torch.utils.data.Dataset):
@@ -140,8 +171,10 @@ if __name__ == "__main__":
                         help='Output directory')
     parser.add_argument('-s', '--sampling_rate', type=int,
                         help='sample rate', default=22050)
-    parser.add_argument('-m', '--model_name', type=str,
-                        help='sample rate', default="waveglow")
+    parser.add_argument('-n', '--num_processes', type=int,
+                        help='sample rate', default=8)
+    parser.add_argument('-p', '--output_file', type=str,
+                        help='output file', default=None)
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -150,6 +183,17 @@ if __name__ == "__main__":
     train_config = json.loads(data)["train_config"]
     mel2samp = Mel2Samp(train_config["fp16_run"], **data_config)
 
+    def local_mel2samp(filepath):
+        filepath = filepath.split("|")[0]
+        audio = preprocess_wav(filepath, sampling_rate=args.sampling_rate)
+        # audio = load_wav_to_torch(filepath, args.sampling_rate)
+
+        melspectrogram = mel2samp.get_mel(audio)
+        filename = os.path.basename(filepath)
+        new_filepath = args.output_dir + '/' + filename + '.pt'
+        print(new_filepath)
+        torch.save(melspectrogram, new_filepath)
+
     filepaths = files_to_list(args.filelist_path)
 
     # Make directory if it doesn't exist
@@ -157,18 +201,18 @@ if __name__ == "__main__":
         os.makedirs(args.output_dir)
         os.chmod(args.output_dir, 0o775)
 
-    for filepath in filepaths:
-        audio = load_wav_to_torch(filepath, args.sampling_rate)
-        if args.model_name == "waveglow":
-            if audio.size(0) >= data_config["segment_length"]:
-                max_audio_start = audio.size(0) - data_config["segment_length"]
-                audio_start = random.randint(0, max_audio_start)
-                audio = audio[audio_start:audio_start+data_config["segment_length"]]
-            else:
-                audio = torch.nn.functional.pad(audio, (0, data_config["segment_length"] - audio.size(0)), 'constant').data
+    with Pool(args.num_processes) as pool:  # ThreadPool(8) as pool:
+        # list(tqdm(pool.imap(preprocess_speaker, speaker_dirs), dataset_name, len(speaker_dirs),
+        pool.map(local_mel2samp, filepaths)
 
-        melspectrogram = mel2samp.get_mel(audio)
-        filename = os.path.basename(filepath)
-        new_filepath = args.output_dir + '/' + filename + '.pt'
-        print(new_filepath)
-        torch.save(melspectrogram, new_filepath)
+
+
+    # for filepath in filepaths:
+    #     audio = preprocess_wav(filepath, sampling_rate=args.sampling_rate)
+    #     # audio = load_wav_to_torch(filepath, args.sampling_rate)
+    #
+    #     melspectrogram = mel2samp.get_mel(audio)
+    #     filename = os.path.basename(filepath)
+    #     new_filepath = args.output_dir + '/' + filename + '.pt'
+    #     print(new_filepath)
+    #     torch.save(melspectrogram, new_filepath)
