@@ -185,7 +185,7 @@ if __name__ == "__main__":
         filepath = filepath.split("|")[0]
         audio = preprocess_wav(filepath, sampling_rate=args.sampling_rate)
         # audio = load_wav_to_torch(filepath, args.sampling_rate)
-
+        audio = torch.FloatTensor(audio.astype(np.float32))
         melspectrogram = mel2samp.get_mel(audio)
         filename = os.path.basename(filepath)
         new_filepath = args.output_dir + '/' + filename + '.pt'
