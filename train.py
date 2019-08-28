@@ -156,7 +156,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
 
             optimizer.step()
             total_loss += reduced_loss
-            if i > 0 and i % 10:
+            if i > 0 and i % 10 == 0:
                 elapsed = datetime.datetime.now() - start_time
                 print("[{}][els: {}] {} epoch, {}/{} steps:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
                                                          elapsed, epoch, iteration, len(train_loader),

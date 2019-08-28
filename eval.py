@@ -25,7 +25,7 @@ def eval(eval_loader, model, criterion, num_gpus, start_time, epoch):
                 reduced_loss = loss.item()
 
             total_loss += reduced_loss
-            if i > 0 and i % 100:
+            if i > 0 and i % 100 == 0:
                 elapsed = datetime.datetime.now() - start_time
                 print("[{}][els: {}] {}/{} steps:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
                                                          elapsed, i, len(eval_loader), reduced_loss))
