@@ -157,7 +157,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
             optimizer.step()
             total_loss += reduced_loss
             if i > 0 and i % 10:
-                print("[{}][els: {}] {} epoch, {}/{}:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
+                print("[{}][els: {}] {} epoch, {}/{} steps:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
                                                          time.time() - start_time, epoch, iteration, len(train_loader),
                                                          reduced_loss))
             if with_tensorboard and rank == 0:
