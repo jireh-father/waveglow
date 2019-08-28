@@ -132,6 +132,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
         print("Epoch: [{}][els: {}] {}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
                                                time.time() - start_time, epoch))
         model.train()
+        total_loss = 0.
         for i, batch in enumerate(train_loader):
             model.zero_grad()
 
@@ -154,10 +155,10 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
                 loss.backward()
 
             optimizer.step()
-
+            total_loss += reduced_loss
             if i > 0 and i % 10:
-                print("[{}][els: {}] {}:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
-                                                         time.time() - start_time, iteration,
+                print("[{}][els: {}] {} epoch {}:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
+                                                         time.time() - start_time, epoch, iteration,
                                                          reduced_loss))
             if with_tensorboard and rank == 0:
                 logger.add_scalar('training_loss', reduced_loss, i + len(train_loader) * epoch)
@@ -170,7 +171,10 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
                                     checkpoint_path)
 
             iteration += 1
-        eval.eval(eval_loader, model, criterion, num_gpus, start_time)
+        print("[{}][els: {}] {} epoch :\tavg loss {:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
+                                                 time.time() - start_time, epoch,
+                                                 total_loss / len(train_loader)))
+        eval.eval(eval_loader, model, criterion, num_gpus, start_time, epoch)
 
 
 if __name__ == "__main__":

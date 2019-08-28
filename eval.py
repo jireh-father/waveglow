@@ -4,10 +4,11 @@ import datetime
 import time
 
 
-def eval(eval_loader, model, criterion, num_gpus, start_time):
+def eval(eval_loader, model, criterion, num_gpus, start_time, epoch):
     print("[%s] start evaluation" % datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
     with torch.no_grad():
         model.eval()
+        total_loss = 0.
         for i, batch in enumerate(eval_loader):
             model.zero_grad()
 
@@ -23,5 +24,10 @@ def eval(eval_loader, model, criterion, num_gpus, start_time):
             else:
                 reduced_loss = loss.item()
 
-            print("[{}][els: {}] {}:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
-                                                     time.time() - start_time, i, reduced_loss))
+            total_loss += reduced_loss
+            if i > 0 and i % 10:
+                print("[{}][els: {}] {}:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
+                                                         time.time() - start_time, i, reduced_loss))
+    print("[{}][els: {}] {} epoch :\tavg loss {:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
+                                                               time.time() - start_time, epoch,
+                                                               total_loss / len(eval_loader)))
