@@ -124,7 +124,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
         from tensorboardX import SummaryWriter
         logger = SummaryWriter(os.path.join(output_directory, 'logs'))
 
-    epoch_offset = max(0, int(iteration / len(train_loader)))
+    epoch_offset = max(1, int(iteration / len(train_loader)))
     start_time = datetime.datetime.now()
     # ================ MAIN TRAINNIG LOOP! ===================
     for epoch in range(epoch_offset, epochs):
