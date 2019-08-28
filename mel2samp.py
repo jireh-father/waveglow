@@ -173,7 +173,7 @@ if __name__ == "__main__":
         data = f.read()
     data_config = json.loads(data)["data_config"]
     train_config = json.loads(data)["train_config"]
-    mel2samp = Mel2Samp(train_config["fp16_run"], **data_config)
+    mel2samp = Mel2Samp(**data_config)
 
     # def local_mel2samp(filepath):
     #     filepath = filepath.split("|")[0]
