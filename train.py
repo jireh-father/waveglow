@@ -30,7 +30,6 @@ import os
 import torch
 import datetime
 import eval
-import time
 
 # =====START: ADDED FOR DISTRIBUTED======
 from distributed import init_distributed, apply_gradient_allreduce, reduce_tensor
@@ -126,11 +125,12 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
         logger = SummaryWriter(os.path.join(output_directory, 'logs'))
 
     epoch_offset = max(0, int(iteration / len(train_loader)))
-    start_time = time.time()
+    start_time = datetime.datetime.now()
     # ================ MAIN TRAINNIG LOOP! ===================
     for epoch in range(epoch_offset, epochs):
+        elapsed = datetime.datetime.now() - start_time
         print("Epoch: [{}][els: {}] {}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
-                                               time.time() - start_time, epoch))
+                                               elapsed, epoch))
         model.train()
         total_loss = 0.
         for i, batch in enumerate(train_loader):
@@ -157,8 +157,9 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
             optimizer.step()
             total_loss += reduced_loss
             if i > 0 and i % 10:
+                elapsed = datetime.datetime.now() - start_time
                 print("[{}][els: {}] {} epoch, {}/{} steps:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
-                                                         time.time() - start_time, epoch, iteration, len(train_loader),
+                                                         elapsed, epoch, iteration, len(train_loader),
                                                          reduced_loss))
             if with_tensorboard and rank == 0:
                 logger.add_scalar('training_loss', reduced_loss, i + len(train_loader) * epoch)
@@ -171,8 +172,9 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
                                     checkpoint_path)
 
             iteration += 1
+        elapsed = datetime.datetime.now() - start_time
         print("[{}][els: {}] {} epoch :\tavg loss {:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
-                                                 time.time() - start_time, epoch,
+                                                 elapsed, epoch,
                                                  total_loss / len(train_loader)))
         eval.eval(eval_loader, model, criterion, num_gpus, start_time, epoch)
 
