@@ -30,6 +30,7 @@ import os
 import torch
 import datetime
 import eval
+from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 
 # =====START: ADDED FOR DISTRIBUTED======
 from distributed import init_distributed, apply_gradient_allreduce, reduce_tensor
@@ -84,6 +85,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
     # =====END:   ADDED FOR DISTRIBUTED======
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    scheduler = StepLR(optimizer, step_size=1, gamma=0.96)
 
     if fp16_run:
         from apex import amp
@@ -128,6 +130,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
     start_time = datetime.datetime.now()
     # ================ MAIN TRAINNIG LOOP! ===================
     for epoch in range(epoch_offset, epochs):
+        print('Epoch:', epoch, 'LR:', scheduler.get_lr())
         elapsed = datetime.datetime.now() - start_time
         print("Epoch: [{}][els: {}] {}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
                                                elapsed, epoch))
@@ -158,8 +161,8 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
             total_loss += reduced_loss
             if i > 0 and i % 10 == 0:
                 elapsed = datetime.datetime.now() - start_time
-                print("[{}][els: {}] {} epoch, {}/{} steps:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
-                                                         elapsed, epoch, iteration, len(train_loader),
+                print("[{}][els: {}] epoch {},total steps{}, {}/{} steps:\t{:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
+                                                         elapsed, epoch, iteration, i, len(train_loader),
                                                          reduced_loss))
             if with_tensorboard and rank == 0:
                 logger.add_scalar('training_loss', reduced_loss, i + len(train_loader) * epoch)
@@ -176,6 +179,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
         print("[{}][els: {}] {} epoch :\tavg loss {:.9f}".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
                                                  elapsed, epoch,
                                                  total_loss / len(train_loader)))
+        scheduler.step()
         eval.eval(eval_loader, model, criterion, num_gpus, start_time, epoch)
 
 
