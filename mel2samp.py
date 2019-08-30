@@ -128,10 +128,11 @@ class Mel2Samp(torch.utils.data.Dataset):
         melspec = torch.squeeze(melspec, 0)
         return melspec
 
-    def __getitem__(self, index):
+    def get_item(self, index):
         # Read audio
         filename = self.audio_files[index]
         filename = os.path.join(self.npy_dir, os.path.basename(filename) + ".npy")
+
         audio = np.load(filename)
 
         audio = torch.from_numpy(audio).float()
@@ -148,6 +149,14 @@ class Mel2Samp(torch.utils.data.Dataset):
         # audio = audio / MAX_WAV_VALUE
 
         return (mel, audio)
+
+    def __getitem__(self, index):
+        # Read audio
+        while True:
+            try:
+                return self.get_item(index)
+            except:
+                index = random.randint(0, len(self.audio_files) - 1)
 
     def __len__(self):
         return len(self.audio_files)
