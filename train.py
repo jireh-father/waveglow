@@ -197,6 +197,27 @@ if __name__ == "__main__":
     with open(args.config) as f:
         data = f.read()
     config = json.loads(data)
+
+    output_dir = config["train_config"]["output_directory"]
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
+    cur_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    f = open(os.path.join(output_dir, "args_%s.txt" % cur_time), "w+")
+    print("====args====")
+    for arg in vars(args):
+        print(arg + " : " + str(getattr(args, arg)))
+        f.write(arg + " : " + str(getattr(args, arg)) + "\n")
+    f.close()
+
+    f = open(os.path.join(output_dir, "config_%s.txt" % cur_time), "w+")
+    print("====hparams====")
+    for arg in config:
+        print("###" + arg + "\n")
+        for sub_key in config[arg]:
+            print(sub_key + " : " + str(config[arg][sub_key]))
+            f.write(sub_key + " : " + str(config[arg][sub_key]) + "\n")
+    f.close()
+
     train_config = config["train_config"]
     global data_config
     data_config = config["data_config"]
