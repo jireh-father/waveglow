@@ -229,7 +229,7 @@ class WaveGlow(torch.nn.Module):
                 n_half = n_half - int(self.n_early_size/2)
                 n_remaining_channels = n_remaining_channels - self.n_early_size
             self.convinv.append(Invertible1x1Conv(n_remaining_channels))
-            self.WN.append(WN(multi_speaker_config, n_half, n_mel_channels*n_group, **WN_config, **multi_speaker_config))
+            self.WN.append(WN(multi_speaker_config, n_half, n_mel_channels*n_group, **WN_config))
         self.n_remaining_channels = n_remaining_channels  # Useful during inference
 
         self.multi_speaker_config = multi_speaker_config
