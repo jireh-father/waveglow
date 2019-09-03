@@ -33,6 +33,7 @@ import torch.utils.data
 import sys
 import numpy as np
 import librosa
+import pickle
 
 # We're using the audio processing from TacoTron2 to make sure it matches
 sys.path.insert(0, 'tacotron2')
@@ -105,7 +106,8 @@ class Mel2Samp(torch.utils.data.Dataset):
     """
 
     def __init__(self, training_files, segment_length, filter_length,
-                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers, npy_dir):
+                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers, npy_dir,
+                 use_multi_speaker, speaker_embedding_path, use_speaker_embedding_model):
         self.audio_files = files_to_list(training_files)
 
         random.seed(1234)
@@ -119,6 +121,11 @@ class Mel2Samp(torch.utils.data.Dataset):
         self.sampling_rate = sampling_rate
         self.num_workers = num_workers
         self.npy_dir = npy_dir
+        self.use_multi_speaker = use_multi_speaker
+        self.speaker_embedding_path = speaker_embedding_path
+        self.use_speaker_embedding_model = use_speaker_embedding_model
+        if not self.use_speaker_embedding_model:
+            self.spk_id_map = pickle.load(open(self.speaker_embedding_path, "rb"))
 
     def get_mel(self, audio):
         # audio_norm = audio / MAX_WAV_VALUE
@@ -148,7 +155,31 @@ class Mel2Samp(torch.utils.data.Dataset):
         # todo: check whether get side effect to result quality
         # audio = audio / MAX_WAV_VALUE
 
-        return (mel, audio)
+        if self.use_multi_speaker:
+            if self.use_speaker_embedding_model:
+                speaker_embedding_path = os.path.join(self.speaker_embedding_path,
+                                                      os.path.basename(self.audio_files[index]) + ".npy")
+                if not os.path.isfile(speaker_embedding_path):
+                    print("nothing spk embed", speaker_embedding_path)
+                    raise Exception("nothing spk embed", speaker_embedding_path)
+                speaker_embedding = self.get_speaker_embedding(speaker_embedding_path)
+            else:
+                spk_file_name = os.path.splitext(os.path.basename(self.audio_files[index]))[0]
+                if spk_file_name not in self.spk_id_map:
+                    print("nothing spk embed id", spk_file_name)
+                    raise Exception("nothing spk embed id", spk_file_name)
+                speaker_embedding = self.spk_id_map[spk_file_name]
+
+            return (mel, audio, speaker_embedding)
+        else:
+            return (mel, audio)
+
+    def get_speaker_embedding(self, filename):
+        speaker_embedding_np = np.load(filename)
+        speaker_embedding_np = torch.autograd.Variable(torch.FloatTensor(speaker_embedding_np.astype(np.float32)),
+                                                       requires_grad=False)
+        # speaker_embedding_np = speaker_embedding_np.half() if self.is_fp16 else speaker_embedding_np
+        return speaker_embedding_np
 
     def __getitem__(self, index):
         # Read audio

@@ -28,12 +28,20 @@ import copy
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
-
+from math import sqrt
 
 @torch.jit.script
 def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
     n_channels_int = n_channels[0]
     in_act = input_a+input_b
+    t_act = torch.tanh(in_act[:, :n_channels_int, :])
+    s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
+    acts = t_act * s_act
+    return acts
+
+def fused_add_tanh_sigmoid_multiply_with_spk(input_a, input_b, input_c, n_channels):
+    n_channels_int = n_channels[0]
+    in_act = input_a+input_b+input_c
     t_act = torch.tanh(in_act[:, :n_channels_int, :])
     s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
     acts = t_act * s_act
@@ -108,7 +116,7 @@ class WN(torch.nn.Module):
     from WaveNet is the convolutions need not be causal.  There is also no dilation
     size reset.  The dilation only doubles on each layer
     """
-    def __init__(self, n_in_channels, n_mel_channels, n_layers, n_channels,
+    def __init__(self, multi_speaker_config, n_in_channels, n_mel_channels, n_layers, n_channels,
                  kernel_size):
         super(WN, self).__init__()
         assert(kernel_size % 2 == 1)
@@ -118,6 +126,9 @@ class WN(torch.nn.Module):
         self.in_layers = torch.nn.ModuleList()
         self.res_skip_layers = torch.nn.ModuleList()
         self.cond_layers = torch.nn.ModuleList()
+        self.use_multi_speaker = multi_speaker_config["use_multi_speaker"]
+        if multi_speaker_config["use_multi_speaker"]:
+            self.spk_layers = torch.nn.ModuleList()
 
         start = torch.nn.Conv1d(n_in_channels, n_channels, 1)
         start = torch.nn.utils.weight_norm(start, name='weight')
@@ -142,6 +153,11 @@ class WN(torch.nn.Module):
             cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
             self.cond_layers.append(cond_layer)
 
+            if multi_speaker_config["use_multi_speaker"]:
+                spk_layer = torch.nn.Conv1d(n_mel_channels, 2 * n_channels, 1)
+                spk_layer = torch.nn.utils.weight_norm(spk_layer, name='weight')
+                self.spk_layers.append(spk_layer)
+
             # last one is not necessary
             if i < n_layers - 1:
                 res_skip_channels = 2*n_channels
@@ -152,14 +168,25 @@ class WN(torch.nn.Module):
             self.res_skip_layers.append(res_skip_layer)
 
     def forward(self, forward_input):
-        audio, spect = forward_input
+        if self.use_multi_speaker:
+            audio, spect, spk_embed = forward_input
+        else:
+            audio, spect = forward_input
         audio = self.start(audio)
 
         for i in range(self.n_layers):
-            acts = fused_add_tanh_sigmoid_multiply(
-                self.in_layers[i](audio),
-                self.cond_layers[i](spect),
-                torch.IntTensor([self.n_channels]))
+            if self.use_multi_speaker:
+                acts = fused_add_tanh_sigmoid_multiply_with_spk(
+                    self.in_layers[i](audio),
+                    self.cond_layers[i](spect),
+                    self.spk_layers[i](spk_embed),
+                    torch.IntTensor([self.n_channels])
+                )
+            else:
+                acts = fused_add_tanh_sigmoid_multiply(
+                    self.in_layers[i](audio),
+                    self.cond_layers[i](spect),
+                    torch.IntTensor([self.n_channels]))
 
             res_skip_acts = self.res_skip_layers[i](acts)
             if i < self.n_layers - 1:
@@ -177,7 +204,7 @@ class WN(torch.nn.Module):
 
 class WaveGlow(torch.nn.Module):
     def __init__(self, n_mel_channels, n_flows, n_group, n_early_every,
-                 n_early_size, WN_config):
+                 n_early_size, WN_config, multi_speaker_config):
         super(WaveGlow, self).__init__()
 
         self.upsample = torch.nn.ConvTranspose1d(n_mel_channels,
@@ -190,6 +217,7 @@ class WaveGlow(torch.nn.Module):
         self.n_early_size = n_early_size
         self.WN = torch.nn.ModuleList()
         self.convinv = torch.nn.ModuleList()
+        self.n_mel_channels = n_mel_channels
 
         n_half = int(n_group/2)
 
@@ -201,22 +229,54 @@ class WaveGlow(torch.nn.Module):
                 n_half = n_half - int(self.n_early_size/2)
                 n_remaining_channels = n_remaining_channels - self.n_early_size
             self.convinv.append(Invertible1x1Conv(n_remaining_channels))
-            self.WN.append(WN(n_half, n_mel_channels*n_group, **WN_config))
+            self.WN.append(WN(multi_speaker_config, n_half, n_mel_channels*n_group, **WN_config, **multi_speaker_config))
         self.n_remaining_channels = n_remaining_channels  # Useful during inference
+
+        self.multi_speaker_config = multi_speaker_config
+        if multi_speaker_config["use_multi_speaker"]:
+            if not multi_speaker_config["use_speaker_embedding_model"]:
+                self.spk_embed_layer = torch.nn.Embedding(multi_speaker_config["nums_of_speakers"], n_mel_channels)
+                if multi_speaker_config["use_speaker_embedding_weight_bound"]:
+                    std = sqrt(2.0 / (multi_speaker_config["nums_of_speakers"] + n_mel_channels))
+                    val = sqrt(3.0) * std  # uniform bounds for std
+                    self.spk_embed_layer.weight.data.uniform_(-val, val)
+            else:
+                if n_mel_channels != multi_speaker_config["speaker_embedding_dim"]:
+                    self.spk_embed_dim_reduction_layer = torch.nn.Linear(
+                        multi_speaker_config["speaker_embedding_dim"],
+                        n_mel_channels, bias=False)
+
 
     def forward(self, forward_input):
         """
         forward_input[0] = mel_spectrogram:  batch x n_mel_channels x frames
         forward_input[1] = audio: batch x time
         """
-        spect, audio = forward_input
+        if self.multi_speaker_config["use_multi_speaker"]:
+            spect, audio, spk_embed_or_id = forward_input
+            if self.multi_speaker_config["use_speaker_embedding_model"]:
+                if self.n_mel_channels != self.multi_speaker_config["speaker_embedding_dim"]:
+                    spk_embed = self.spk_embed_dim_reduction_layer(spk_embed_or_id)
+                else:
+                    spk_embed = spk_embed_or_id
+            else:
+                spk_embed = self.spk_embed_layer(spk_embed_or_id)
+
+            spk_embed = spk_embed.unsqueeze(2).repeat(1, 1, spect.size()[2])
+            spk_embed = self.upsample(spk_embed)
+            assert (spk_embed.size(2) >= audio.size(1))
+            if spk_embed.size(2) > audio.size(1):
+                spk_embed = spk_embed[:, :, :audio.size(1)]
+            spk_embed = spk_embed.unfold(2, self.n_group, self.n_group).permute(0, 2, 1, 3)
+            spk_embed = spk_embed.contiguous().view(spk_embed.size(0), spk_embed.size(1), -1).permute(0, 2, 1)
+        else:
+            spect, audio = forward_input
 
         #  Upsample spectrogram to size of audio
         spect = self.upsample(spect)
         assert(spect.size(2) >= audio.size(1))
         if spect.size(2) > audio.size(1):
             spect = spect[:, :, :audio.size(1)]
-
         spect = spect.unfold(2, self.n_group, self.n_group).permute(0, 2, 1, 3)
         spect = spect.contiguous().view(spect.size(0), spect.size(1), -1).permute(0, 2, 1)
 
@@ -237,7 +297,10 @@ class WaveGlow(torch.nn.Module):
             audio_0 = audio[:,:n_half,:]
             audio_1 = audio[:,n_half:,:]
 
-            output = self.WN[k]((audio_0, spect))
+            if self.multi_speaker_config["use_multi_speaker"]:
+                output = self.WN[k]((audio_0, spect, spk_embed))
+            else:
+                output = self.WN[k]((audio_0, spect))
             log_s = output[:, n_half:, :]
             b = output[:, :n_half, :]
             audio_1 = torch.exp(log_s)*audio_1 + b
@@ -248,7 +311,25 @@ class WaveGlow(torch.nn.Module):
         output_audio.append(audio)
         return torch.cat(output_audio,1), log_s_list, log_det_W_list
 
-    def infer(self, spect, sigma=1.0):
+    def infer(self, spect, sigma=1.0, spk_embed_or_id=None):
+        if self.multi_speaker_config["use_multi_speaker"]:
+            if self.multi_speaker_config["use_speaker_embedding_model"]:
+                if self.n_mel_channels != self.multi_speaker_config["speaker_embedding_dim"]:
+                    spk_embed = self.spk_embed_dim_reduction_layer(spk_embed_or_id)
+                else:
+                    spk_embed = spk_embed_or_id
+            else:
+                spk_embed = self.spk_embed_layer(spk_embed_or_id)
+
+            spk_embed = spk_embed.unsqueeze(2).repeat(1, 1, spect.size()[2])
+            spk_embed = self.upsample(spk_embed)
+
+            time_cutoff = self.upsample.kernel_size[0] - self.upsample.stride[0]
+            spk_embed = spk_embed[:, :, :-time_cutoff]
+
+            spk_embed = spk_embed.unfold(2, self.n_group, self.n_group).permute(0, 2, 1, 3)
+            spk_embed = spk_embed.contiguous().view(spk_embed.size(0), spk_embed.size(1), -1).permute(0, 2, 1)
+
         spect = self.upsample(spect)
         # trim conv artifacts. maybe pad spec to kernel multiple
         time_cutoff = self.upsample.kernel_size[0] - self.upsample.stride[0]
@@ -273,7 +354,10 @@ class WaveGlow(torch.nn.Module):
             audio_0 = audio[:,:n_half,:]
             audio_1 = audio[:,n_half:,:]
 
-            output = self.WN[k]((audio_0, spect))
+            if self.multi_speaker_config["use_multi_speaker"]:
+                output = self.WN[k]((audio_0, spect, spk_embed))
+            else:
+                output = self.WN[k]((audio_0, spect))
             s = output[:, n_half:, :]
             b = output[:, :n_half, :]
             audio_1 = (audio_1 - b)/torch.exp(s)
