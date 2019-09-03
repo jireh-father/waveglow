@@ -139,7 +139,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
         for i, batch in enumerate(train_loader):
             model.zero_grad()
 
-            if waveglow_config["use_multi_speaker"]:
+            if waveglow_config["multi_speaker_config"]["use_multi_speaker"]:
                 mel, audio, spk_embed_or_id = batch
                 spk_embed_or_id = torch.autograd.Variable(spk_embed_or_id.cuda())
             else:
@@ -147,7 +147,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
             mel = torch.autograd.Variable(mel.cuda())
             audio = torch.autograd.Variable(audio.cuda())
 
-            if waveglow_config["use_multi_speaker"]:
+            if waveglow_config["multi_speaker_config"]["use_multi_speaker"]:
                 outputs = model((mel, audio, spk_embed_or_id))
             else:
                 outputs = model((mel, audio))
