@@ -4,7 +4,7 @@ import datetime
 import time
 
 
-def eval(eval_loader, model, criterion, num_gpus, start_time, epoch, waveglow_config):
+def eval(eval_loader, model, criterion, num_gpus, start_time, epoch, use_multi_speaker=False):
     print("[%s] start evaluation" % datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
     with torch.no_grad():
         model.eval()
@@ -12,7 +12,7 @@ def eval(eval_loader, model, criterion, num_gpus, start_time, epoch, waveglow_co
         for i, batch in enumerate(eval_loader):
             model.zero_grad()
 
-            if waveglow_config["multi_speaker_config"]["use_multi_speaker"]:
+            if use_multi_speaker:
                 mel, audio, spk_embed_or_id = batch
                 spk_embed_or_id = torch.autograd.Variable(spk_embed_or_id.cuda())
             else:
@@ -20,7 +20,7 @@ def eval(eval_loader, model, criterion, num_gpus, start_time, epoch, waveglow_co
             mel = torch.autograd.Variable(mel.cuda())
             audio = torch.autograd.Variable(audio.cuda())
 
-            if waveglow_config["multi_speaker_config"]["use_multi_speaker"]:
+            if use_multi_speaker:
                 outputs = model((mel, audio, spk_embed_or_id))
             else:
                 outputs = model((mel, audio))
