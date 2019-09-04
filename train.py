@@ -187,7 +187,7 @@ def train(num_gpus, rank, group_name, output_directory, epochs, learning_rate,
                                                  elapsed, epoch,
                                                  total_loss / len(train_loader)))
         scheduler.step()
-        eval.eval(eval_loader, model, criterion, num_gpus, start_time, epoch)
+        eval.eval(eval_loader, model, criterion, num_gpus, start_time, epoch, ["multi_speaker_config"]["use_multi_speaker"])
 
 
 if __name__ == "__main__":
