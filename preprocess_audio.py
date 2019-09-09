@@ -34,6 +34,7 @@ import sys
 import numpy as np
 import librosa
 from multiprocess.pool import Pool
+import mel2samp
 
 # We're using the audio processing from TacoTron2 to make sure it matches
 sys.path.insert(0, 'tacotron2')
@@ -53,110 +54,6 @@ def files_to_list(filename):
     return files
 
 
-def load_wav_to_torch(full_path, sampling_rate):
-    data = librosa.core.load(full_path, sr=sampling_rate)[0]
-    data = data / np.abs(data).max() * 0.999
-    return torch.FloatTensor(data.astype(np.float32))
-
-
-# def load_wav_to_torch(full_path):
-#     """
-#     Loads wavdata into torch array
-#     """
-#     sampling_rate, data = read(full_path)
-#     return torch.from_numpy(data).float(), sampling_rate
-
-int16_max = (2 ** 15) - 1
-audio_norm_target_dBFS = -30
-
-
-def preprocess_wav(fpath_or_wav, source_sr=None, sampling_rate=16000):
-    # Load the wav from disk if needed
-    if isinstance(fpath_or_wav, str):
-        wav, source_sr = librosa.load(fpath_or_wav, sr=None)
-    else:
-        wav = fpath_or_wav
-
-    # Resample the wav if needed
-    if source_sr is not None and source_sr != sampling_rate:
-        wav = librosa.resample(wav, source_sr, sampling_rate)
-
-    # Apply the preprocessing: normalize volume and shorten long silences
-    wav = normalize_volume(wav, audio_norm_target_dBFS, increase_only=True)
-    wav = wav / np.abs(wav).max() * 0.999
-    # wav = trim_long_silences(wav)
-    return wav
-
-
-def normalize_volume(wav, target_dBFS, increase_only=False, decrease_only=False):
-    if increase_only and decrease_only:
-        raise ValueError("Both increase only and decrease only are set")
-    rms = np.sqrt(np.mean((wav * int16_max) ** 2))
-    wave_dBFS = 20 * np.log10(rms / int16_max)
-    dBFS_change = target_dBFS - wave_dBFS
-    if dBFS_change < 0 and increase_only or dBFS_change > 0 and decrease_only:
-        return wav
-    return wav * (10 ** (dBFS_change / 20))
-
-
-class Mel2Samp(torch.utils.data.Dataset):
-    """
-    This is the main class that calculates the spectrogram and returns the
-    spectrogram, audio pair.
-    """
-
-    def __init__(self, training_files, segment_length, filter_length,
-                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers):
-        self.audio_files = files_to_list(training_files)
-
-        random.seed(1234)
-        random.shuffle(self.audio_files)
-        self.stft = TacotronSTFT(filter_length=filter_length,
-                                 hop_length=hop_length,
-                                 win_length=win_length,
-                                 sampling_rate=sampling_rate,
-                                 mel_fmin=mel_fmin, mel_fmax=mel_fmax)
-        self.segment_length = segment_length
-        self.sampling_rate = sampling_rate
-        self.num_workers = num_workers
-
-    def get_mel(self, audio):
-        # audio_norm = audio / MAX_WAV_VALUE
-        audio_norm = audio.unsqueeze(0)
-        audio_norm = torch.autograd.Variable(audio_norm, requires_grad=False)
-        melspec = self.stft.mel_spectrogram(audio_norm)
-        melspec = torch.squeeze(melspec, 0)
-        return melspec
-
-    def __getitem__(self, index):
-        # Read audio
-        filename = self.audio_files[index]
-        audio_filename = self.training_audio_files[index]
-
-        mel = torch.load(filename)
-        # mel = torch.autograd.Variable(mel.cuda())
-        # mel = torch.unsqueeze(mel, 0)
-        # mel = mel.half() if self.is_fp16 else mel
-
-        audio = load_wav_to_torch(audio_filename, self.sampling_rate)
-        # if sampling_rate != self.sampling_rate:
-        #     raise ValueError("{} SR doesn't match target {} SR".format(
-        #         sampling_rate, self.sampling_rate))
-
-        # Take segment
-        if audio.size(0) >= self.segment_length:
-            max_audio_start = audio.size(0) - self.segment_length
-            audio_start = random.randint(0, max_audio_start)
-            audio = audio[audio_start:audio_start + self.segment_length]
-        else:
-            audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
-        mel = self.get_mel(audio)
-        # audio = audio / MAX_WAV_VALUE
-
-        return (mel, audio)
-
-    def __len__(self):
-        return len(self.audio_files)
 
 
 # ===================================================================
@@ -181,13 +78,13 @@ if __name__ == "__main__":
         data = f.read()
     data_config = json.loads(data)["data_config"]
     train_config = json.loads(data)["train_config"]
-    mel2samp = Mel2Samp(**data_config)
+    mel2samp = mel2samp.Mel2Samp(**data_config)
 
 
     def local_mel2samp(filepath):
         print("start", filepath)
         filepath = filepath.split("|")[0]
-        audio = preprocess_wav(filepath, sampling_rate=args.sampling_rate)
+        audio = mel2samp.preprocess_wav(filepath, sampling_rate=args.sampling_rate)
         filename = os.path.basename(filepath)
         new_filepath = args.output_dir + '/' + filename + '.npy'
         print("finish", new_filepath)

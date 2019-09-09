@@ -55,7 +55,7 @@ def files_to_list(filename):
 
 def load_wav_to_torch(full_path, sampling_rate):
     data = librosa.core.load(full_path, sr=sampling_rate)[0]
-    data = data / np.abs(data).max() * 0.999
+    # data = data / np.abs(data).max() * 0.999
     return torch.FloatTensor(data.astype(np.float32))
 
 
@@ -70,21 +70,13 @@ int16_max = (2 ** 15) - 1
 audio_norm_target_dBFS = -30
 
 
-def preprocess_wav(fpath_or_wav, source_sr=None, sampling_rate=16000):
+def preprocess_wav(fpath_or_wav, sampling_rate=16000):
     # Load the wav from disk if needed
     if isinstance(fpath_or_wav, str):
-        wav, source_sr = librosa.load(fpath_or_wav, sr=None)
+        wav = librosa.core.load(fpath_or_wav, sr=sampling_rate)[0]
     else:
         wav = fpath_or_wav
 
-    # Resample the wav if needed
-    if source_sr is not None and source_sr != sampling_rate:
-        wav = librosa.resample(wav, source_sr, sampling_rate)
-
-    # Apply the preprocessing: normalize volume and shorten long silences
-    wav = normalize_volume(wav, audio_norm_target_dBFS, increase_only=True)
-    wav = wav / np.abs(wav).max() * 0.999
-    # wav = trim_long_silences(wav)
     return wav
 
 
@@ -128,8 +120,8 @@ class Mel2Samp(torch.utils.data.Dataset):
             self.spk_id_map = pickle.load(open(self.speaker_embedding_path, "rb"))
 
     def get_mel(self, audio):
-        # audio_norm = audio / MAX_WAV_VALUE
-        audio_norm = audio.unsqueeze(0)
+        audio_norm = audio / MAX_WAV_VALUE
+        audio_norm = audio_norm.unsqueeze(0)
         audio_norm = torch.autograd.Variable(audio_norm, requires_grad=False)
         melspec = self.stft.mel_spectrogram(audio_norm)
         melspec = torch.squeeze(melspec, 0)
@@ -153,7 +145,7 @@ class Mel2Samp(torch.utils.data.Dataset):
             audio = torch.nn.functional.pad(audio, (0, self.segment_length - audio.size(0)), 'constant').data
         mel = self.get_mel(audio)
         # todo: check whether get side effect to result quality
-        # audio = audio / MAX_WAV_VALUE
+        audio = audio / MAX_WAV_VALUE
 
         if self.use_multi_speaker:
             if self.use_speaker_embedding_model:
