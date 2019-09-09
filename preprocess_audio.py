@@ -64,8 +64,6 @@ if __name__ == "__main__":
     # Get defaults so it can work with no Sacred
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', "--filelist_path", required=True)
-    parser.add_argument('-c', '--config', type=str,
-                        help='JSON file for configuration')
     parser.add_argument('-o', '--output_dir', type=str,
                         help='Output directory')
     parser.add_argument('-s', '--sampling_rate', type=int,
@@ -74,17 +72,20 @@ if __name__ == "__main__":
                         help='num_processes', default=4)
     args = parser.parse_args()
 
-    with open(args.config) as f:
-        data = f.read()
-    data_config = json.loads(data)["data_config"]
-    train_config = json.loads(data)["train_config"]
-    mel2samp = mel2samp.Mel2Samp(**data_config)
 
+    def preprocess_wav(fpath_or_wav, sampling_rate=16000):
+        # Load the wav from disk if needed
+        if isinstance(fpath_or_wav, str):
+            wav = librosa.core.load(fpath_or_wav, sr=sampling_rate)[0]
+        else:
+            wav = fpath_or_wav
+
+        return wav
 
     def local_mel2samp(filepath):
         print("start", filepath)
         filepath = filepath.split("|")[0]
-        audio = mel2samp.preprocess_wav(filepath, sampling_rate=args.sampling_rate)
+        audio = preprocess_wav(filepath, sampling_rate=args.sampling_rate)
         filename = os.path.basename(filepath)
         new_filepath = args.output_dir + '/' + filename + '.npy'
         print("finish", new_filepath)
