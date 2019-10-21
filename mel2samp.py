@@ -130,7 +130,8 @@ class Mel2Samp(torch.utils.data.Dataset):
     def get_item(self, index):
         # Read audio
         filename = self.audio_files[index]
-        filename = os.path.join(self.npy_dir, os.path.basename(filename) + ".npy")
+        # filename = os.path.join(self.npy_dir, os.path.basename(filename) + ".npy")
+        filename = filename + ".npy"
 
         audio = np.load(filename)
 

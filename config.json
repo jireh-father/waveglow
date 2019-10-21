@@ -13,7 +13,6 @@
     },
     "data_config": {
         "training_files": "train_files.txt",
-        "training_audio_files": "train_audio_files.txt",
         "segment_length": 16000,
         "sampling_rate": 22050,
         "filter_length": 1024,
@@ -22,7 +21,25 @@
         "mel_fmin": 0.0,
         "mel_fmax": 8000.0,
         "num_workers": 4,
-        "preprocessing": true
+        "npy_dir": "/home/ilseo/dataset/wav_npy_aihub_datatang_speechko_zeroth",
+        "use_multi_speaker": true,
+        "speaker_embedding_path": "/home/ilseo/dataset/speaker_id_map_datatang_zeroth_speechko.pkl",
+        "use_speaker_embedding_model": false
+    },
+    "eval_data_config": {
+        "training_files": "test_files.txt",
+        "segment_length": 16000,
+        "sampling_rate": 22050,
+        "filter_length": 1024,
+        "hop_length": 256,
+        "win_length": 1024,
+        "mel_fmin": 0.0,
+        "mel_fmax": 8000.0,
+        "num_workers": 4,
+        "npy_dir": "/home/ilseo/dataset/wav_npy_aihub_datatang_speechko_zeroth",
+        "use_multi_speaker": true,
+        "speaker_embedding_path": "/home/ilseo/dataset/speaker_id_map_datatang_zeroth_speechko.pkl",
+        "use_speaker_embedding_model": false
     },
     "dist_config": {
         "dist_backend": "nccl",
@@ -39,6 +56,13 @@
             "n_layers": 8,
             "n_channels": 256,
             "kernel_size": 3
+        },
+        "multi_speaker_config": {
+            "use_multi_speaker": true,
+            "use_speaker_embedding_weight_bound": true,
+            "nums_of_speakers": 251,
+            "speaker_embedding_dim": 512,
+            "use_speaker_embedding_model": false
         }
     }
 }

@@ -64,8 +64,6 @@ if __name__ == "__main__":
     # Get defaults so it can work with no Sacred
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', "--filelist_path", required=True)
-    parser.add_argument('-o', '--output_dir', type=str,
-                        help='Output directory')
     parser.add_argument('-s', '--sampling_rate', type=int,
                         help='sample rate', default=22050)
     parser.add_argument('-n', '--num_processes', type=int,
@@ -93,10 +91,6 @@ if __name__ == "__main__":
 
     filepaths = files_to_list(args.filelist_path)
 
-    # Make directory if it doesn't exist
-    if not os.path.isdir(args.output_dir):
-        os.makedirs(args.output_dir)
-        os.chmod(args.output_dir, 0o775)
 
     with Pool(args.num_processes) as pool:  # ThreadPool(8) as pool:
         # list(tqdm(pool.imap(preprocess_speaker, speaker_dirs), dataset_name, len(speaker_dirs),
