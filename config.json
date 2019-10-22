@@ -21,7 +21,6 @@
         "mel_fmin": 0.0,
         "mel_fmax": 8000.0,
         "num_workers": 4,
-        "npy_dir": "/home/ilseo/dataset/wav_npy_aihub_datatang_speechko_zeroth",
         "use_multi_speaker": true,
         "speaker_embedding_path": "/home/ilseo/dataset/speaker_id_map_datatang_zeroth_speechko.pkl",
         "use_speaker_embedding_model": false
@@ -36,7 +35,6 @@
         "mel_fmin": 0.0,
         "mel_fmax": 8000.0,
         "num_workers": 4,
-        "npy_dir": "/home/ilseo/dataset/wav_npy_aihub_datatang_speechko_zeroth",
         "use_multi_speaker": true,
         "speaker_embedding_path": "/home/ilseo/dataset/speaker_id_map_datatang_zeroth_speechko.pkl",
         "use_speaker_embedding_model": false

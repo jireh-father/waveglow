@@ -98,7 +98,7 @@ class Mel2Samp(torch.utils.data.Dataset):
     """
 
     def __init__(self, training_files, segment_length, filter_length,
-                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers, npy_dir,
+                 hop_length, win_length, sampling_rate, mel_fmin, mel_fmax, num_workers,
                  use_multi_speaker, speaker_embedding_path, use_speaker_embedding_model):
         self.audio_files = files_to_list(training_files)
 
@@ -112,7 +112,6 @@ class Mel2Samp(torch.utils.data.Dataset):
         self.segment_length = segment_length
         self.sampling_rate = sampling_rate
         self.num_workers = num_workers
-        self.npy_dir = npy_dir
         self.use_multi_speaker = use_multi_speaker
         self.speaker_embedding_path = speaker_embedding_path
         self.use_speaker_embedding_model = use_speaker_embedding_model
