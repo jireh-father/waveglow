@@ -49,7 +49,7 @@ def files_to_list(filename):
     with open(filename, encoding='utf-8') as f:
         files = f.readlines()
 
-    files = [f.rstrip() for f in files]
+    files = [line.strip().split("|")[0] for line in files]
     return files
 
 
